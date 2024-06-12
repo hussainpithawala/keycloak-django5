@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 set -e
 
-pip install -e ./../django-keycloak/
-pip install -e ./../python-keycloak-client/ || true
+#pip install -e ./../keycloak-django5/
+#pip install -e ./../python-keycloak-client/ || true
 
 if [ -f db.sqlite3 ]; then
     echo "Application already initialized."

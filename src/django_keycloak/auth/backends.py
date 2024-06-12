@@ -27,6 +27,8 @@ class KeycloakAuthorizationBase(object):
                 pk=user_id)
         except UserModel.DoesNotExist:
             return None
+        except Exception:
+            return None
 
         if user.oidc_profile.refresh_expires_before > timezone.now():
             return user
@@ -36,6 +38,8 @@ class KeycloakAuthorizationBase(object):
     def get_all_permissions(self, user_obj, obj=None):
         if not user_obj.is_active or user_obj.is_anonymous or obj is not None:
             return set()
+        if hasattr(user_obj, 'roles'):
+            return user_obj.roles
         if not hasattr(user_obj, '_keycloak_perm_cache'):
             user_obj._keycloak_perm_cache = self.get_keycloak_permissions(
                 user_obj=user_obj)
@@ -45,12 +49,12 @@ class KeycloakAuthorizationBase(object):
         if not hasattr(user_obj, 'oidc_profile'):
             return set()
 
-        rpt_decoded = django_keycloak.services.oidc_profile\
-            .get_entitlement(oidc_profile=user_obj.oidc_profile)
+        rpt_decoded = django_keycloak.services.oidc_profile.get_decoded_jwt(user_obj.oidc_profile)
+        resource_access = rpt_decoded.get('resource_access', {})
 
         if settings.KEYCLOAK_PERMISSIONS_METHOD == 'role':
             return [
-                role for role in rpt_decoded['resource_access'].get(
+                role for role in resource_access.get(
                     user_obj.oidc_profile.realm.client.client_id,
                     {'roles': []}
                 )['roles']

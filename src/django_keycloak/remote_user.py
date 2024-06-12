@@ -1,5 +1,9 @@
+import django.contrib.auth.models
 from django.contrib import auth
+from django.contrib.auth.models import Permission
 from django.core.exceptions import PermissionDenied
+from django.core.serializers.json import DjangoJSONEncoder
+from django.db.models.manager import EmptyManager
 
 from django_keycloak.models import RemoteUserOpenIdConnectProfile
 
@@ -17,7 +21,8 @@ class KeycloakRemoteUser(object):
     email = ''
     password = ''
     groups = []
-    user_permissions = []
+    user_permissions = EmptyManager(Permission)
+    permissions = []
 
     _last_login = None
 
@@ -31,6 +36,14 @@ class KeycloakRemoteUser(object):
         self.first_name = userinfo.get('given_name', '')
         self.last_name = userinfo.get('family_name', '')
         self.sub = userinfo['sub']
+        self.client_id = userinfo.get('azp')
+        if 'resource_access' in userinfo:
+            self.roles = userinfo['resource_access'][self.client_id]['roles']
+
+        if 'roles' in userinfo:
+            self.roles = userinfo['roles']
+
+        self.user_permissions = Permission.objects.filter(codename__in=self.roles)
 
     def __str__(self):
         return self.username
@@ -57,7 +70,7 @@ class KeycloakRemoteUser(object):
         :rtype: bool
         :return: whether the user is a staff member or not, defaults to False
         """
-        return False
+        return True
 
     @property
     def is_active(self):
@@ -147,7 +160,8 @@ class KeycloakRemoteUser(object):
             # Excluding Django.contrib.auth backends since they are not
             # compatible with non-db-backed permissions.
             if hasattr(backend, "get_all_permissions") \
-                    and not backend.__module__.startswith('django.'):
+                    and not backend.__module__.startswith('django.') \
+                    and not backend.__module__.startswith('allauth'):
                 permissions.update(backend.get_all_permissions(self, obj))
         return permissions
 
@@ -175,8 +189,11 @@ class KeycloakRemoteUser(object):
                     or backend.__module__.startswith('django.contrib.auth'):
                 continue
             try:
-                if backend.has_perm(self, perm, obj):
-                    return True
+                if hasattr(backend, "get_all_permissions") \
+                        and not backend.__module__.startswith('django.') \
+                        and not backend.__module__.startswith('allauth.'):
+                    if backend.has_perm(self, perm, obj):
+                        return True
             except PermissionDenied:
                 return False
         return False
@@ -194,8 +211,11 @@ class KeycloakRemoteUser(object):
             if not hasattr(backend, 'has_module_perms'):
                 continue
             try:
-                if backend.has_module_perms(self, module):
-                    return True
+                if hasattr(backend, "get_all_permissions") \
+                        and not backend.__module__.startswith('django.') \
+                        and not backend.__module__.startswith('allauth.'):
+                    if backend.has_module_perms(self, module):
+                        return True
             except PermissionDenied:
                 return False
         return False

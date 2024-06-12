@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-import logging
+import logging, os
 
 from django.apps import apps as django_apps
 from django.conf import settings
@@ -100,10 +100,26 @@ def update_or_create_user_and_oidc_profile(client, id_token_object):
         return oidc_profile
 
     with transaction.atomic():
+        username_as_sub = os.environ.get('DKC_USE_PREFERRED_USER_NAME_AS_SUB', False)
+
+        if username_as_sub:
+            username = id_token_object['preferred_username']
+        else:
+            username = id_token_object['sub']
+
+        resource_access = id_token_object.get('resource_access', None)
+        if resource_access:
+            roles = resource_access.get(client.client_id, {'roles': []})['roles']
+        else:
+            roles = []
+
+        is_super_user = 'super_user' in roles
+
         UserModel = get_user_model()
         email_field_name = UserModel.get_email_field_name()
         user, _ = UserModel.objects.update_or_create(
-            username=id_token_object['sub'],
+            username=username,
+            is_superuser=is_super_user,
             defaults={
                 email_field_name: id_token_object.get('email', ''),
                 'first_name': id_token_object.get('given_name', ''),
@@ -219,7 +235,8 @@ def _update_or_create(client, token_response, initiate_time):
         key=client.realm.certs,
         algorithms=client.openid_api_client.well_known[
             'id_token_signing_alg_values_supported'],
-        issuer=issuer
+        issuer=issuer,
+        access_token = token_response["access_token"],
     )
 
     oidc_profile = update_or_create_user_and_oidc_profile(
@@ -247,7 +264,13 @@ def update_tokens(token_model, token_response, initiate_time):
 
     token_model.access_token = token_response['access_token']
     token_model.expires_before = expires_before
-    token_model.refresh_token = token_response['refresh_token']
+
+    refresh_token = token_response.get('refresh_token')
+
+    if not refresh_token:
+        refresh_token = token_response.get('id_token')
+
+    token_model.refresh_token = refresh_token
     token_model.refresh_expires_before = refresh_expires_before
 
     token_model.save(update_fields=['access_token',

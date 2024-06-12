@@ -2,7 +2,7 @@ import os
 
 from setuptools import setup, find_packages
 
-VERSION = '0.1.2-dev'
+VERSION = '0.1.7'
 
 with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as readme:
     README = readme.read()
@@ -11,7 +11,7 @@ with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as readme:
 os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 
 setup(
-    name='django-keycloak',
+    name='keycloak-django5',
     version=VERSION,
     long_description=README,
     package_dir={'': 'src'},
@@ -31,8 +31,8 @@ setup(
         'python-keycloak-client',
     ],
     install_requires=[
-        'python-keycloak-client>=0.2.2',
-        'Django>=1.11',
+        'python3-keycloak22-client>=0.2.3',
+        'Django>=5.0.0',
     ],
     tests_require=[
         'pytest-django',
@@ -41,7 +41,7 @@ setup(
         'factory-boy',
         'freezegun'
     ],
-    url='https://github.com/Peter-Slump/django-keycloak',
+    url='https://github.com/hussainpithawala/keycloak-django5',
     license='MIT',
     author='Peter Slump',
     author_email='peter@yarf.nl',
